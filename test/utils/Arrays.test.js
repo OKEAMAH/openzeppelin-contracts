@@ -3,6 +3,8 @@ const { expect } = require('chai');
 const { loadFixture } = require('@nomicfoundation/hardhat-network-helpers');
 
 const { generators } = require('../helpers/random');
+const { capitalize } = require('../../scripts/helpers');
+const { TYPES } = require('../../scripts/generate/templates/Arrays.opts');
 
 // See https://en.cppreference.com/w/cpp/algorithm/lower_bound
 const lowerBound = (array, value) => {
@@ -17,6 +19,7 @@ const upperBound = (array, value) => {
 };
 
 const bigintSign = x => (x > 0n ? 1 : x < 0n ? -1 : 0);
+const comparator = (a, b) => bigintSign(ethers.toBigInt(a) - ethers.toBigInt(b));
 const hasDuplicates = array => array.some((v, i) => array.indexOf(v) != i);
 
 describe('Arrays', function () {
@@ -116,26 +119,12 @@ describe('Arrays', function () {
     }
   });
 
-  for (const [type, { artifact, elements, comp }] of Object.entries({
-    address: {
-      artifact: 'AddressArraysMock',
-      elements: Array.from({ length: 10 }, generators.address),
-      comp: (a, b) => bigintSign(ethers.toBigInt(a) - ethers.toBigInt(b)),
-    },
-    bytes32: {
-      artifact: 'Bytes32ArraysMock',
-      elements: Array.from({ length: 10 }, generators.bytes32),
-      comp: (a, b) => bigintSign(ethers.toBigInt(a) - ethers.toBigInt(b)),
-    },
-    uint256: {
-      artifact: 'Uint256ArraysMock',
-      elements: Array.from({ length: 10 }, generators.uint256),
-      comp: (a, b) => bigintSign(a - b),
-    },
-  })) {
+  for (const type of TYPES) {
+    const elements = Array.from({ length: 10 }, generators[type]);
+
     describe(type, function () {
       const fixture = async () => {
-        return { instance: await ethers.deployContract(artifact, [elements]) };
+        return { instance: await ethers.deployContract(`${capitalize(type)}ArraysMock`, [elements]) };
       };
 
       beforeEach(async function () {
@@ -146,14 +135,14 @@ describe('Arrays', function () {
         for (const length of [0, 1, 2, 8, 32, 128]) {
           describe(`${type}[] of length ${length}`, function () {
             beforeEach(async function () {
-              this.elements = Array.from({ length }, generators[type]);
+              this.array = Array.from({ length }, generators[type]);
             });
 
             afterEach(async function () {
-              const expected = Array.from(this.elements).sort(comp);
+              const expected = Array.from(this.array).sort(comparator);
               const reversed = Array.from(expected).reverse();
-              expect(await this.instance.sort(this.elements)).to.deep.equal(expected);
-              expect(await this.instance.sortReverse(this.elements)).to.deep.equal(reversed);
+              expect(await this.instance.sort(this.array)).to.deep.equal(expected);
+              expect(await this.instance.sortReverse(this.array)).to.deep.equal(reversed);
             });
 
             it('sort array', async function () {
@@ -163,23 +152,23 @@ describe('Arrays', function () {
             if (length > 1) {
               it('sort array for identical elements', async function () {
                 // duplicate the first value to all elements
-                this.elements.fill(this.elements.at(0));
+                this.array.fill(this.array.at(0));
               });
 
               it('sort already sorted array', async function () {
                 // pre-sort the elements
-                this.elements.sort(comp);
+                this.array.sort(comparator);
               });
 
               it('sort reversed array', async function () {
                 // pre-sort in reverse order
-                this.elements.sort(comp).reverse();
+                this.array.sort(comparator).reverse();
               });
 
               it('sort almost sorted array', async function () {
                 // pre-sort + rotate (move the last element to the front) for an almost sorted effect
-                this.elements.sort(comp);
-                this.elements.unshift(this.elements.pop());
+                this.array.sort(comparator);
+                this.array.unshift(this.array.pop());
               });
             }
           });
@@ -197,6 +186,14 @@ describe('Arrays', function () {
           it('unsafeAccess outside bounds', async function () {
             await expect(this.instance.unsafeAccess(elements.length)).to.not.be.rejected;
           });
+
+          it('unsafeSetLength changes the length or the array', async function () {
+            const newLength = generators.uint256();
+
+            expect(await this.instance.length()).to.equal(elements.length);
+            await expect(this.instance.unsafeSetLength(newLength)).to.not.be.rejected;
+            expect(await this.instance.length()).to.equal(newLength);
+          });
         });
 
         describe('memory', function () {
@@ -210,6 +207,14 @@ describe('Arrays', function () {
 
           it('unsafeMemoryAccess outside bounds', async function () {
             await expect(this.mock[fragment](elements, elements.length)).to.not.be.rejected;
+          });
+
+          it('unsafeMemoryAccess loop around', async function () {
+            for (let i = 251n; i < 256n; ++i) {
+              expect(await this.mock[fragment](elements, 2n ** i - 1n)).to.equal(BigInt(elements.length));
+              expect(await this.mock[fragment](elements, 2n ** i + 0n)).to.equal(elements[0]);
+              expect(await this.mock[fragment](elements, 2n ** i + 1n)).to.equal(elements[1]);
+            }
           });
         });
       });

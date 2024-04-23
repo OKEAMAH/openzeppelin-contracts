@@ -3,6 +3,8 @@
 
 pragma solidity ^0.8.20;
 
+import {Errors} from "./Errors.sol";
+
 /**
  * @dev Helper to make usage of the `CREATE2` EVM opcode easier and safer.
  * `CREATE2` can be used to compute in advance the address where a smart
@@ -14,19 +16,9 @@ pragma solidity ^0.8.20;
  */
 library Create2 {
     /**
-     * @dev Not enough balance for performing a CREATE2 deploy.
-     */
-    error Create2InsufficientBalance(uint256 balance, uint256 needed);
-
-    /**
      * @dev There's no code to deploy.
      */
     error Create2EmptyBytecode();
-
-    /**
-     * @dev The deployment failed.
-     */
-    error Create2FailedDeployment();
 
     /**
      * @dev Deploys a contract using `CREATE2`. The address where the contract
@@ -44,7 +36,7 @@ library Create2 {
      */
     function deploy(uint256 amount, bytes32 salt, bytes memory bytecode) internal returns (address addr) {
         if (address(this).balance < amount) {
-            revert Create2InsufficientBalance(address(this).balance, amount);
+            revert Errors.InsufficientBalance(address(this).balance, amount);
         }
         if (bytecode.length == 0) {
             revert Create2EmptyBytecode();
@@ -54,7 +46,7 @@ library Create2 {
             addr := create2(amount, add(bytecode, 0x20), mload(bytecode), salt)
         }
         if (addr == address(0)) {
-            revert Create2FailedDeployment();
+            revert Errors.FailedDeployment();
         }
     }
 
@@ -90,7 +82,7 @@ library Create2 {
             mstore(ptr, deployer) // Right-aligned with 12 preceding garbage bytes
             let start := add(ptr, 0x0b) // The hashed data starts at the final garbage byte which we will set to 0xff
             mstore8(start, 0xff)
-            addr := keccak256(start, 85)
+            addr := and(keccak256(start, 85), 0xffffffffffffffffffffffffffffffffffffffff)
         }
     }
 }

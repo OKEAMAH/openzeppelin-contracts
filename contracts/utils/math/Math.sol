@@ -74,17 +74,33 @@ library Math {
     }
 
     /**
+     * @dev Branchless ternary evaluation for `a ? b : c`. Gas costs are constant.
+     *
+     * IMPORTANT: This function may reduce bytecode size and consume less gas when used standalone.
+     * However, the compiler may optimize Solidity ternary operations (i.e. `a ? b : c`) to only compute
+     * one branch when needed, making this function more expensive.
+     */
+    function ternary(bool condition, uint256 a, uint256 b) internal pure returns (uint256) {
+        unchecked {
+            // branchless ternary works because:
+            // b ^ (a ^ b) == a
+            // b ^ 0 == b
+            return b ^ ((a ^ b) * SafeCast.toUint(condition));
+        }
+    }
+
+    /**
      * @dev Returns the largest of two numbers.
      */
     function max(uint256 a, uint256 b) internal pure returns (uint256) {
-        return a > b ? a : b;
+        return ternary(a > b, a, b);
     }
 
     /**
      * @dev Returns the smallest of two numbers.
      */
     function min(uint256 a, uint256 b) internal pure returns (uint256) {
-        return a < b ? a : b;
+        return ternary(a < b, a, b);
     }
 
     /**
@@ -114,7 +130,7 @@ library Math {
         // but the largest value we can obtain is type(uint256).max - 1, which happens
         // when a = type(uint256).max and b = 1.
         unchecked {
-            return a == 0 ? 0 : (a - 1) / b + 1;
+            return SafeCast.toUint(a > 0) * ((a - 1) / b + 1);
         }
     }
 
@@ -147,7 +163,7 @@ library Math {
 
             // Make sure the result is less than 2²⁵⁶. Also prevents denominator == 0.
             if (denominator <= prod1) {
-                Panic.panic(denominator == 0 ? Panic.DIVISION_BY_ZERO : Panic.UNDER_OVERFLOW);
+                Panic.panic(ternary(denominator == 0, Panic.DIVISION_BY_ZERO, Panic.UNDER_OVERFLOW));
             }
 
             ///////////////////////////////////////////////
@@ -268,7 +284,7 @@ library Math {
             }
 
             if (gcd != 1) return 0; // No inverse exists.
-            return x < 0 ? (n - uint256(-x)) : uint256(x); // Wrap the result if it's negative.
+            return ternary(x < 0, n - uint256(-x), uint256(x)); // Wrap the result if it's negative.
         }
     }
 
@@ -440,7 +456,7 @@ library Math {
 
             // We now have x_n such that `x_n = 2**(e-1) ≤ sqrt(a) < 2**e = 2 * x_n`. This implies ε_n ≤ 2**(e-1).
             //
-            // We can refine our estimation by noticing that the the middle of that interval minimizes the error.
+            // We can refine our estimation by noticing that the middle of that interval minimizes the error.
             // If we move x_n to equal 2**(e-1) + 2**(e-2), then we reduce the error to ε_n ≤ 2**(e-2).
             // This is going to be our x_0 (and ε_0)
             xn = (3 * xn) >> 1; // ε_0 := | x_0 - sqrt(a) | ≤ 2**(e-2)
