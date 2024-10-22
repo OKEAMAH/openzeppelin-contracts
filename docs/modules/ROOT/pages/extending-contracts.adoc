@@ -18,18 +18,7 @@ Inheritance is often used to add the parent contract's functionality to your own
 For example, imagine you want to change xref:api:access.adoc#AccessControl[`AccessControl`] so that xref:api:access.adoc#AccessControl-revokeRole-bytes32-address-[`revokeRole`] can no longer be called. This can be achieved using overrides:
 
 ```solidity
-// contracts/ModifiedAccessControl.sol
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
-
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-
-contract ModifiedAccessControl is AccessControl {
-    // Override the revokeRole function
-    function revokeRole(bytes32, address) public override {
-        revert("ModifiedAccessControl: cannot revoke roles");
-    }
-}
+include::api:example$access-control/AccessControlModified.sol[]
 ```
 
 The old `revokeRole` is then replaced by our override, and any calls to it will immediately revert. We cannot _remove_ the function from the contract, but reverting on all calls is good enough.
@@ -46,22 +35,7 @@ Here is a modified version of xref:api:access.adoc#AccessControl[`AccessControl`
 
 
 ```solidity
-// contracts/ModifiedAccessControl.sol
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
-
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-
-contract ModifiedAccessControl is AccessControl {
-    function revokeRole(bytes32 role, address account) public override {
-        require(
-            role != DEFAULT_ADMIN_ROLE,
-            "ModifiedAccessControl: cannot revoke default admin role"
-        );
-
-        super.revokeRole(role, account);
-    }
-}
+include::api:example$access-control/AccessControlNonRevokableAdmin.sol[]
 ```
 
 The `super.revokeRole` statement at the end will invoke ``AccessControl``'s original version of `revokeRole`, the same code that would've run if there were no overrides in place.
@@ -72,6 +46,6 @@ NOTE: The same rule is implemented and extended in xref:api:access.adoc#AccessCo
 
 The maintainers of OpenZeppelin Contracts are mainly concerned with the correctness and security of the code as published in the library, and the combinations of base contracts with the official extensions from the library.
 
-Custom overrides, and those of hooks in particular, may break some important assumptions and introduce vulnerabilities in otherwise secure code. While we try to ensure the contracts remain secure in the face of a wide range of potential customizations, this is done in a best-effort manner. While we try to document all important assumptions, this should not be relied upon. Custom overrides should be carefully reviewed and checked against the source code of the contract they are customizing so as to fully understand their impact and guarantee their security.
+Custom overrides, especially to hooks, can disrupt important assumptions and may introduce security risks in the code that was previously secure. While we try to ensure the contracts remain secure in the face of a wide range of potential customizations, this is done in a best-effort manner. While we try to document all important assumptions, this should not be relied upon. Custom overrides should be carefully reviewed and checked against the source code of the contract they are customizing to fully understand their impact and guarantee their security.
 
 The way functions interact internally should not be assumed to stay stable across releases of the library. For example, a function that is used in one context in a particular release may not be used in the same context in the next release. Contracts that override functions should revalidate their assumptions when updating the version of OpenZeppelin Contracts they are built on.

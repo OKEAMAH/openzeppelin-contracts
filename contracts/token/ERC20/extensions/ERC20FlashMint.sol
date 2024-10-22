@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// OpenZeppelin Contracts (last updated v5.0.0) (token/ERC20/extensions/ERC20FlashMint.sol)
+// OpenZeppelin Contracts (last updated v5.1.0) (token/ERC20/extensions/ERC20FlashMint.sol)
 
 pragma solidity ^0.8.20;
 
@@ -32,7 +32,7 @@ abstract contract ERC20FlashMint is ERC20, IERC3156FlashLender {
     error ERC3156ExceededMaxLoan(uint256 maxLoan);
 
     /**
-     * @dev The receiver of a flashloan is not a valid {onFlashLoan} implementer.
+     * @dev The receiver of a flashloan is not a valid {IERC3156FlashBorrower-onFlashLoan} implementer.
      */
     error ERC3156InvalidReceiver(address receiver);
 

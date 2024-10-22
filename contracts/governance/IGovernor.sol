@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// OpenZeppelin Contracts (last updated v5.0.0) (governance/IGovernor.sol)
+// OpenZeppelin Contracts (last updated v5.1.0) (governance/IGovernor.sol)
 
 pragma solidity ^0.8.20;
 
@@ -8,6 +8,9 @@ import {IERC6372} from "../interfaces/IERC6372.sol";
 
 /**
  * @dev Interface of the {Governor} core.
+ *
+ * NOTE: Event parameters lack the `indexed` keyword for compatibility with GovernorBravo events.
+ * Making event parameters `indexed` affects how events are decoded, potentially breaking existing indexers.
  */
 interface IGovernor is IERC165, IERC6372 {
     enum ProposalState {
@@ -84,6 +87,11 @@ interface IGovernor is IERC165, IERC6372 {
     error GovernorInvalidVoteType();
 
     /**
+     * @dev The provided params buffer is not supported by the counting module.
+     */
+    error GovernorInvalidVoteParams();
+
+    /**
      * @dev Queue operation is not implemented for this governor. Execute should be called directly.
      */
     error GovernorQueueNotImplemented();
@@ -145,7 +153,7 @@ interface IGovernor is IERC165, IERC6372 {
      * @dev Emitted when a vote is cast with params.
      *
      * Note: `support` values should be seen as buckets. Their interpretation depends on the voting module used.
-     * `params` are additional encoded parameters. Their interpepretation also depends on the voting module used.
+     * `params` are additional encoded parameters. Their interpretation  also depends on the voting module used.
      */
     event VoteCastWithParams(
         address indexed voter,

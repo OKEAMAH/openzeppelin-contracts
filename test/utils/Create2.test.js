@@ -1,6 +1,9 @@
 const { ethers } = require('hardhat');
 const { expect } = require('chai');
 const { loadFixture } = require('@nomicfoundation/hardhat-network-helpers');
+const { PANIC_CODES } = require('@nomicfoundation/hardhat-chai-matchers/panic');
+
+const { RevertType } = require('../helpers/enums');
 
 async function fixture() {
   const [deployer, other] = await ethers.getSigners();
@@ -19,7 +22,9 @@ async function fixture() {
     .getContractFactory('$Create2')
     .then(({ bytecode, interface }) => ethers.concat([bytecode, interface.encodeDeploy([])]));
 
-  return { deployer, other, factory, constructorByteCode, constructorLessBytecode };
+  const mockFactory = await ethers.getContractFactory('ConstructorMock');
+
+  return { deployer, other, factory, constructorByteCode, constructorLessBytecode, mockFactory };
 }
 
 describe('Create2', function () {
@@ -114,7 +119,7 @@ describe('Create2', function () {
 
       await expect(this.factory.$deploy(0n, saltHex, this.constructorByteCode)).to.be.revertedWithCustomError(
         this.factory,
-        'Create2FailedDeployment',
+        'FailedDeployment',
       );
     });
 
@@ -127,8 +132,59 @@ describe('Create2', function () {
 
     it('fails deploying a contract if factory contract does not have sufficient balance', async function () {
       await expect(this.factory.$deploy(1n, saltHex, this.constructorByteCode))
-        .to.be.revertedWithCustomError(this.factory, 'Create2InsufficientBalance')
+        .to.be.revertedWithCustomError(this.factory, 'InsufficientBalance')
         .withArgs(0n, 1n);
+    });
+
+    describe('reverts error thrown during contract creation', function () {
+      it('bubbles up without message', async function () {
+        await expect(
+          this.factory.$deploy(
+            0n,
+            saltHex,
+            ethers.concat([
+              this.mockFactory.bytecode,
+              this.mockFactory.interface.encodeDeploy([RevertType.RevertWithoutMessage]),
+            ]),
+          ),
+        ).to.be.revertedWithCustomError(this.factory, 'FailedDeployment');
+      });
+
+      it('bubbles up message', async function () {
+        await expect(
+          this.factory.$deploy(
+            0n,
+            saltHex,
+            ethers.concat([
+              this.mockFactory.bytecode,
+              this.mockFactory.interface.encodeDeploy([RevertType.RevertWithMessage]),
+            ]),
+          ),
+        ).to.be.revertedWith('ConstructorMock: reverting');
+      });
+
+      it('bubbles up custom error', async function () {
+        await expect(
+          this.factory.$deploy(
+            0n,
+            saltHex,
+            ethers.concat([
+              this.mockFactory.bytecode,
+              this.mockFactory.interface.encodeDeploy([RevertType.RevertWithCustomError]),
+            ]),
+          ),
+        ).to.be.revertedWithCustomError({ interface: this.mockFactory.interface }, 'CustomError');
+      });
+
+      it('bubbles up panic', async function () {
+        await expect(
+          this.factory.$deploy(
+            0n,
+            saltHex,
+            ethers.concat([this.mockFactory.bytecode, this.mockFactory.interface.encodeDeploy([RevertType.Panic])]),
+          ),
+        ).to.be.revertedWithPanic(PANIC_CODES.DIVISION_BY_ZERO);
+      });
     });
   });
 });

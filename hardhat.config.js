@@ -1,12 +1,12 @@
 /// ENVVAR
-// - COMPILE_VERSION:   compiler version (default: 0.8.20)
-// - SRC:               contracts folder to compile (default: contracts)
-// - COMPILE_MODE:      production modes enables optimizations (default: development)
-// - IR:                enable IR compilation (default: false)
-// - COVERAGE:          enable coverage report
-// - ENABLE_GAS_REPORT: enable gas report
-// - COINMARKETCAP:     coinmarkercat api key for USD value in gas report
-// - CI:                output gas report to file instead of stdout
+// - COMPILER:      compiler version (default: 0.8.24)
+// - SRC:           contracts folder to compile (default: contracts)
+// - RUNS:          number of optimization runs (default: 200)
+// - IR:            enable IR compilation (default: false)
+// - COVERAGE:      enable coverage report (default: false)
+// - GAS:           enable gas report (default: false)
+// - COINMARKETCAP: coinmarketcap api key for USD value in gas report
+// - CI:            output gas report to file instead of stdout
 
 const fs = require('fs');
 const path = require('path');
@@ -18,23 +18,27 @@ const { argv } = require('yargs/yargs')()
     compiler: {
       alias: 'compileVersion',
       type: 'string',
-      default: '0.8.20',
+      default: '0.8.24',
     },
     src: {
       alias: 'source',
       type: 'string',
       default: 'contracts',
     },
-    mode: {
-      alias: 'compileMode',
-      type: 'string',
-      choices: ['production', 'development'],
-      default: 'development',
+    runs: {
+      alias: 'optimizationRuns',
+      type: 'number',
+      default: 200,
     },
     ir: {
       alias: 'enableIR',
       type: 'boolean',
       default: false,
+    },
+    evm: {
+      alias: 'evmVersion',
+      type: 'string',
+      default: 'cancun',
     },
     // Extra modules
     coverage: {
@@ -64,9 +68,6 @@ for (const f of fs.readdirSync(path.join(__dirname, 'hardhat'))) {
   require(path.join(__dirname, 'hardhat', f));
 }
 
-const withOptimizations = argv.gas || argv.coverage || argv.compileMode === 'production';
-const allowUnlimitedContractSize = argv.gas || argv.coverage || argv.compileMode === 'development';
-
 /**
  * @type import('hardhat/config').HardhatUserConfig
  */
@@ -75,10 +76,11 @@ module.exports = {
     version: argv.compiler,
     settings: {
       optimizer: {
-        enabled: withOptimizations,
-        runs: 200,
+        enabled: true,
+        runs: argv.runs,
       },
-      viaIR: withOptimizations && argv.ir,
+      evmVersion: argv.evm,
+      viaIR: argv.ir,
       outputSelection: { '*': { '*': ['storageLayout'] } },
     },
   },
@@ -88,25 +90,30 @@ module.exports = {
       'initcode-size': 'off',
     },
     '*': {
-      'code-size': withOptimizations,
+      'code-size': true,
       'unused-param': !argv.coverage, // coverage causes unused-param warnings
+      'transient-storage': false,
       default: 'error',
     },
   },
   networks: {
     hardhat: {
-      allowUnlimitedContractSize,
+      hardfork: argv.evm,
+      // Exposed contracts often exceed the maximum contract size. For normal contract,
+      // we rely on the `code-size` compiler warning, that will cause a compilation error.
+      allowUnlimitedContractSize: true,
       initialBaseFeePerGas: argv.coverage ? 0 : undefined,
     },
   },
   exposed: {
     imports: true,
     initializers: true,
-    exclude: ['vendor/**/*'],
+    exclude: ['vendor/**/*', '**/*WithInit.sol'],
   },
   gasReporter: {
     enabled: argv.gas,
     showMethodSig: true,
+    includeBytecodeInJSON: true,
     currency: 'USD',
     coinmarketcap: argv.coinmarketcap,
   },
